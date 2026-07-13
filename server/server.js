@@ -16,6 +16,26 @@ app.use(express.json());
 // Initialize Database Tables
 db.initDatabase();
 
+// Helper to get current Indian Standard Time (IST) Date and Time
+function getISTDateTime() {
+  const utcDate = new Date();
+  // India Standard Time is UTC + 5.5 hours (5 * 60 + 30 = 330 minutes)
+  const istOffset = 330 * 60000;
+  const istDate = new Date(utcDate.getTime() + istOffset);
+  
+  const year = istDate.getUTCFullYear();
+  const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+  const date = String(istDate.getUTCDate()).padStart(2, '0');
+  const hours = String(istDate.getUTCHours()).padStart(2, '0');
+  const minutes = String(istDate.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(istDate.getUTCSeconds()).padStart(2, '0');
+  
+  return {
+    todayStr: `${year}-${month}-${date}`,
+    timeStr: `${hours}:${minutes}:${seconds}`
+  };
+}
+
 // --- Authentication Middleware ---
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -258,7 +278,7 @@ app.get('/api/attendance/selector-list', authenticateToken, async (req, res) => 
 
 // GET today's logs for a given employee (or all today logs if no employee specified & requester is admin)
 app.get('/api/attendance/today', authenticateToken, async (req, res) => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const { todayStr } = getISTDateTime();
   const { employeeId } = req.query;
 
   try {
@@ -326,9 +346,7 @@ app.post('/api/attendance/mark', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Employee not found.' });
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    const { todayStr, timeStr } = getISTDateTime();
     const logId = 'L-' + Math.random().toString(36).substr(2, 9).toUpperCase();
 
     // Geolocation parsing
@@ -423,7 +441,7 @@ app.get('/api/attendance/history', authenticateToken, async (req, res) => {
 
 // GET Dashboard Stats Summary
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const { todayStr } = getISTDateTime();
 
   try {
     if (req.user.isAdmin) {

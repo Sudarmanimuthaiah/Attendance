@@ -180,17 +180,18 @@ function timeDiffMinutes(time1, time2) {
 async function updateDashboardStats() {
   if (!state.currentUser) return;
 
-  try {
-    state.todayLogs = await apiFetch('/api/attendance/today');
-  } catch (err) {
-    console.error('Failed to pre-fetch today logs for dashboard status:', err);
-  }
-
   updateGreetingBanner();
   updateLeaveBadge();
 
   try {
-    const data = await apiFetch('/api/dashboard/stats');
+    const [todayLogs, data] = await Promise.all([
+      apiFetch('/api/attendance/today').catch(err => {
+        console.error('Failed to pre-fetch today logs for dashboard status:', err);
+        return [];
+      }),
+      apiFetch('/api/dashboard/stats')
+    ]);
+    state.todayLogs = todayLogs;
     const { stats, recentActivity } = data;
 
     if (state.currentUser.isAdmin) {
@@ -274,8 +275,11 @@ async function renderAttendanceSelector(searchQuery = '') {
   if (!state.currentUser) return;
 
   try {
-    state.todayLogs = await apiFetch('/api/attendance/today');
-    const list = await apiFetch('/api/attendance/selector-list');
+    const [todayLogs, list] = await Promise.all([
+      apiFetch('/api/attendance/today'),
+      apiFetch('/api/attendance/selector-list')
+    ]);
+    state.todayLogs = todayLogs;
     
     if (state.currentUser.isAdmin) {
       document.getElementById('attendance-employee-sidebar').style.display = 'block';
@@ -806,6 +810,35 @@ async function deleteEmployee(id) {
   }
 }
 
+// Helper to disable/enable check-in buttons and show loading feedback
+function setButtonLoading(isLoading) {
+  const btnIn = document.getElementById('btn-check-in');
+  const btnOut = document.getElementById('btn-check-out');
+  if (!btnIn || !btnOut) return;
+  if (isLoading) {
+    btnIn.disabled = true;
+    btnOut.disabled = true;
+    btnIn.innerHTML = 'Processing...';
+    btnOut.innerHTML = 'Processing...';
+  } else {
+    btnIn.disabled = false;
+    btnOut.disabled = false;
+    btnIn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      Check In
+    `;
+    btnOut.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+      Check Out
+    `;
+  }
+}
+
 // Mark Check In / Check Out Log (incorporates GPS retrieval)
 async function handleMarkAttendance(action) {
   if (!state.selectedEmployeeId) return;
@@ -813,6 +846,8 @@ async function handleMarkAttendance(action) {
   const remarks = document.getElementById('marking-remarks').value.trim();
   const activePill = document.querySelector('#status-pill-group .status-pill.active');
   const status = activePill ? activePill.getAttribute('data-val') : 'Office';
+
+  setButtonLoading(true);
 
   if (status === 'Office' && action === 'Check In' && navigator.geolocation) {
     showToast('Retrieving GPS location for range verification...', 'info');
@@ -861,10 +896,15 @@ async function submitMarkRequest(action, status, remarks, latitude, longitude) {
       showToast(res.message, 'success');
     }
     
-    await renderAttendanceSelector();
-    await updateDashboardStats();
+    // Fetch and render updates in parallel!
+    await Promise.all([
+      renderAttendanceSelector(),
+      updateDashboardStats()
+    ]);
   } catch (err) {
     showToast(err.message, 'danger');
+  } finally {
+    setButtonLoading(false);
   }
 }
 

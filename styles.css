@@ -1394,69 +1394,103 @@ tr:hover .user-avatar {
   
   .sidebar {
     width: 100%;
-    height: 60px; /* Slim fixed header height */
+    height: 64px; /* Bottom navigation height */
     position: fixed;
-    top: 0;
+    bottom: 0;
+    top: auto; /* Reset top */
     left: 0;
     display: flex;
     flex-direction: row;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    padding: 0 1rem;
+    padding: 0;
     border-right: none;
-    border-bottom: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border);
+    border-bottom: none;
     background: var(--glass-bg);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     z-index: 1000;
     box-sizing: border-box;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
   }
   
   .brand {
-    margin-bottom: 0;
-    justify-content: flex-start;
-    gap: 0.5rem;
-    padding-left: 0;
-  }
-
-  .brand-name {
-    display: none; /* Hide brand name on mobile to save space */
-  }
-
-  .brand-logo {
-    width: 36px;
-    height: 36px;
-    font-size: 0.9rem;
-    margin-bottom: 0;
+    display: none !important; /* Hide branding entirely on mobile bottom nav */
   }
   
   .nav-links {
     flex-direction: row;
-    flex-wrap: nowrap; /* Keep on a single line */
-    gap: 0.3rem;
-    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 0;
+    justify-content: flex-start;
+    align-items: center;
     margin: 0;
-    padding: 0;
+    padding: 0 0.5rem;
+    width: 100%;
+    height: 100%;
+    overflow-x: auto; /* Horizontally scrollable tabs */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for a clean mobile UI */
+  }
+  
+  .nav-item {
+    flex: 0 0 70px; /* Exact fixed width for each nav item to scroll nicely */
+    min-width: 70px;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
   
   .nav-link {
-    padding: 0.5rem;
-    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
+    gap: 4px;
+    width: 100%;
+    height: 100%;
+    padding: 4px 0;
+    border-radius: 0;
+    background: transparent !important;
+    border: none;
+    box-shadow: none;
   }
 
   .nav-link span {
-    display: none; /* Hide navigation text labels on mobile */
+    display: block !important; /* Force navigation text labels to show */
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    opacity: 0.65;
+    white-space: nowrap;
+    transition: opacity 0.2s ease;
+  }
+
+  .nav-link.active span {
+    opacity: 1;
+    color: var(--primary);
   }
 
   .nav-link svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     margin: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .nav-link:active svg {
+    transform: scale(0.9);
   }
   
   .mobile-only-logout {
-    display: block !important; /* Show mobile logout in mobile view */
+    display: block !important; /* Show mobile logout in bottom nav list */
   }
   
   .sidebar-footer {
@@ -1465,8 +1499,9 @@ tr:hover .user-avatar {
   
   .main-content {
     margin-left: 0;
-    margin-right: 0; /* Reset right margin on mobile */
-    margin-top: 60px; /* Space for fixed top header */
+    margin-right: 0;
+    margin-top: 0; /* Reset top space */
+    margin-bottom: 74px; /* Space at the bottom to avoid overlapping bottom nav bar */
     width: 100%;
     padding: 1.25rem 1rem;
   }
@@ -1931,7 +1966,7 @@ body.dark-theme .theme-toggle-btn .icon-moon {
   /* Float theme toggle as a Floating Action Button (FAB) in the bottom right corner on mobile screens */
   .right-sidebar {
     position: fixed;
-    bottom: 1.5rem; /* Floating at bottom-right */
+    bottom: 5.5rem; /* Floating at bottom-right, above bottom nav */
     right: 1.5rem;
     top: auto; /* Reset top position */
     width: 48px; /* Standard mobile touch-target size */

@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "npm run dev --prefix server",
-    "postinstall": "npm install --prefix server",
-    "install-all": "npm install --prefix server"
+    "postinstall": "cd server && npm install",
+    "install-all": "cd server && npm install"
   }
 }

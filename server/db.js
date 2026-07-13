@@ -200,7 +200,7 @@ async function initDatabase() {
     
     console.log('Database initialized successfully.');
   } catch (err) {
-    console.error('Error initializing database:', err.message);
+    console.error('Error initializing database:', err);
     console.log('Please make sure your MySQL server is running and the database specified exists.');
   }
 }

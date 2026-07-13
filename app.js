@@ -220,11 +220,14 @@ async function updateDashboardStats() {
     const btnQuickAttendance = document.getElementById('btn-quick-attendance');
 
     if (userCheckIn) {
-      // Parse IST time to a standard JS date object
-      state.userCheckInTime = new Date(`${userCheckIn.date}T${userCheckIn.time}+05:30`);
+      // Parse using today's local date to ensure timezone shifting doesn't break parsing
+      const todayLocalDateStr = new Date().toLocaleDateString('en-CA'); // Returns YYYY-MM-DD
+      const cleanTimeIn = userCheckIn.time.split('.')[0];
+      state.userCheckInTime = new Date(`${todayLocalDateStr}T${cleanTimeIn}`);
       
       if (userCheckOut) {
-        state.userCheckOutTime = new Date(`${userCheckOut.date}T${userCheckOut.time}+05:30`);
+        const cleanTimeOut = userCheckOut.time.split('.')[0];
+        state.userCheckOutTime = new Date(`${todayLocalDateStr}T${cleanTimeOut}`);
         if (statusTxt) {
           statusTxt.textContent = `Checked Out`;
           statusTxt.className = 'user-status checked-out';

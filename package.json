@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "Root package manager for Attendance Hub",
   "scripts": {
-    "start": "npm start --prefix server",
+    "start": "node server/server.js",
     "dev": "npm run dev --prefix server",
+    "postinstall": "npm install --prefix server",
     "install-all": "npm install --prefix server"
   }
 }

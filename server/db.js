@@ -1,62 +1,42 @@
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 let pool;
 
 if (process.env.DATABASE_URL) {
-  // Use connection string for hosting platforms like Railway, Render, etc.
-  // Add dateStrings=true query parameter to the URL if not already present
-  let url = process.env.DATABASE_URL;
-  if (!url.includes('dateStrings=')) {
-    url += url.includes('?') ? '&dateStrings=true' : '?dateStrings=true';
-  }
-  pool = mysql.createPool(url);
+  // Aiven or other cloud Postgres URL
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
 } else {
-  // Use separate variables for local development
-  pool = mysql.createPool({
+  // Local PostgreSQL fallback
+  pool = new Pool({
     host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'root',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_NAME || 'attendance_hub',
-    port: process.env.DB_PORT || 3306,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-    dateStrings: true
+    port: process.env.DB_PORT || 5432
   });
 }
 
 // Helper to execute query
 async function query(sql, params) {
-  const [results] = await pool.execute(sql, params);
-  return results;
+  // Convert MySQL-style "?" placeholders to PostgreSQL "$1, $2, ..." style
+  let pgSql = sql;
+  let index = 1;
+  pgSql = pgSql.replace(/\?/g, () => `$${index++}`);
+  
+  const res = await pool.query(pgSql, params);
+  return res.rows;
 }
 
 // Initialize and seed database
 async function initDatabase() {
   try {
-    console.log('Verifying database existence...');
-    
-    const dbName = process.env.DB_NAME || 'attendance_hub';
-    
-    // Create connection without database target to ensure database is created
-    let tempConn;
-    if (process.env.DATABASE_URL) {
-      tempConn = await mysql.createConnection(process.env.DATABASE_URL);
-    } else {
-      tempConn = await mysql.createConnection({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        port: process.env.DB_PORT || 3306
-      });
-    }
-    
-    await tempConn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-    await tempConn.end();
-    
-    console.log(`Database "${dbName}" ready.`);
     console.log('Initializing Database tables...');
     
     // Create employees table
@@ -70,7 +50,7 @@ async function initDatabase() {
         color VARCHAR(20) NOT NULL,
         is_admin BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      )
     `);
 
     // Create attendance logs table
@@ -79,24 +59,24 @@ async function initDatabase() {
         id VARCHAR(50) PRIMARY KEY,
         date DATE NOT NULL,
         employee_id VARCHAR(50) NOT NULL,
-        action ENUM('Check In', 'Check Out') NOT NULL,
+        action VARCHAR(50) NOT NULL,
         time TIME NOT NULL,
-        status ENUM('Office', 'Remote', 'Half Day') NOT NULL,
+        status VARCHAR(50) NOT NULL,
         remarks TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      )
     `);
 
     // Safely add geolocation columns to attendance_logs
     try {
-      await query('ALTER TABLE attendance_logs ADD COLUMN latitude DECIMAL(10, 8) NULL');
+      await query('ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 8) NULL');
     } catch (e) { /* Column already exists or error ignored */ }
     try {
-      await query('ALTER TABLE attendance_logs ADD COLUMN longitude DECIMAL(11, 8) NULL');
+      await query('ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS longitude DECIMAL(11, 8) NULL');
     } catch (e) { /* Column already exists or error ignored */ }
     try {
-      await query('ALTER TABLE attendance_logs ADD COLUMN distance_meters INT NULL');
+      await query('ALTER TABLE attendance_logs ADD COLUMN IF NOT EXISTS distance_meters INT NULL');
     } catch (e) { /* Column already exists or error ignored */ }
 
     // Create leaves table
@@ -104,25 +84,25 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS leaves (
         id VARCHAR(50) PRIMARY KEY,
         employee_id VARCHAR(50) NOT NULL,
-        leave_type ENUM('Sick Leave', 'Casual Leave', 'Paid Leave', 'Unpaid Leave') NOT NULL,
+        leave_type VARCHAR(50) NOT NULL,
         start_date DATE NOT NULL,
         end_date DATE NOT NULL,
         reason TEXT NOT NULL,
-        status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+        status VARCHAR(50) DEFAULT 'Pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      )
     `);
 
     // Create holidays table
     await query(`
       CREATE TABLE IF NOT EXISTS holidays (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         date DATE UNIQUE NOT NULL,
         name VARCHAR(100) NOT NULL,
         type VARCHAR(50) DEFAULT 'National',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      )
     `);
 
     // Check if an admin already exists, if not, create one
@@ -153,10 +133,10 @@ async function initDatabase() {
 
     // Seed default holidays if empty or missing Tamil holidays (like Pongal)
     const pongalCheck = await query("SELECT COUNT(*) as count FROM holidays WHERE name LIKE '%Pongal%'");
-    const hasPongal = pongalCheck[0].count > 0;
+    const hasPongal = parseInt(pongalCheck[0].count || 0) > 0;
     const holidayCount = await query('SELECT COUNT(*) as count FROM holidays');
 
-    if (holidayCount[0].count === 0 || !hasPongal) {
+    if (parseInt(holidayCount[0].count || 0) === 0 || !hasPongal) {
       console.log('Seeding initial Tamil Nadu / Indian holidays calendar list...');
       const currentYear = new Date().getFullYear();
       const defaultHolidays = [
@@ -188,7 +168,7 @@ async function initDatabase() {
       for (const h of defaultHolidays) {
         try {
           await query(
-            'INSERT INTO holidays (date, name, type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name), type = VALUES(type)',
+            'INSERT INTO holidays (date, name, type) VALUES (?, ?, ?) ON CONFLICT (date) DO UPDATE SET name = EXCLUDED.name, type = EXCLUDED.type',
             [h.date, h.name, h.type]
           );
         } catch (err) {
@@ -201,7 +181,7 @@ async function initDatabase() {
     console.log('Database initialized successfully.');
   } catch (err) {
     console.error('Error initializing database:', err);
-    console.log('Please make sure your MySQL server is running and the database specified exists.');
+    console.log('Please make sure your PostgreSQL server is running and the database specified exists.');
   }
 }
 

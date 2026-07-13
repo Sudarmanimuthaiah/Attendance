@@ -702,12 +702,12 @@ app.get('/api/analytics/charts', authenticateToken, async (req, res) => {
   try {
     // 1. Monthly Check-in counts (for bar chart)
     const monthlyQuery = `
-      SELECT DATE_FORMAT(date, '%b %Y') as label, COUNT(*) as count 
+      SELECT TO_CHAR(date, 'Mon YYYY') as label, COUNT(*) as count 
       FROM attendance_logs 
       WHERE action = 'Check In' 
       ${!req.user.isAdmin ? 'AND employee_id = ?' : ''}
-      GROUP BY DATE_FORMAT(date, '%b %Y'), DATE_FORMAT(date, '%Y-%m')
-      ORDER BY DATE_FORMAT(date, '%Y-%m') ASC
+      GROUP BY TO_CHAR(date, 'Mon YYYY'), TO_CHAR(date, 'YYYY-MM')
+      ORDER BY TO_CHAR(date, 'YYYY-MM') ASC
       LIMIT 12
     `;
     const monthlyParams = !req.user.isAdmin ? [req.user.id] : [];
@@ -731,16 +731,16 @@ app.get('/api/analytics/charts', authenticateToken, async (req, res) => {
     if (req.user.isAdmin) {
       lateQuery = `
         SELECT 
-          SUM(CASE WHEN HOUR(time) > 9 OR (HOUR(time) = 9 AND MINUTE(time) > 15) THEN 1 ELSE 0 END) as late,
-          SUM(CASE WHEN HOUR(time) < 9 OR (HOUR(time) = 9 AND MINUTE(time) <= 15) THEN 1 ELSE 0 END) as ontime
+          SUM(CASE WHEN EXTRACT(HOUR FROM time) > 9 OR (EXTRACT(HOUR FROM time) = 9 AND EXTRACT(MINUTE FROM time) > 15) THEN 1 ELSE 0 END) as late,
+          SUM(CASE WHEN EXTRACT(HOUR FROM time) < 9 OR (EXTRACT(HOUR FROM time) = 9 AND EXTRACT(MINUTE FROM time) <= 15) THEN 1 ELSE 0 END) as ontime
         FROM attendance_logs
         WHERE action = 'Check In'
       `;
     } else {
       lateQuery = `
         SELECT 
-          SUM(CASE WHEN HOUR(time) > 9 OR (HOUR(time) = 9 AND MINUTE(time) > 15) THEN 1 ELSE 0 END) as late,
-          SUM(CASE WHEN HOUR(time) < 9 OR (HOUR(time) = 9 AND MINUTE(time) <= 15) THEN 1 ELSE 0 END) as ontime
+          SUM(CASE WHEN EXTRACT(HOUR FROM time) > 9 OR (EXTRACT(HOUR FROM time) = 9 AND EXTRACT(MINUTE FROM time) > 15) THEN 1 ELSE 0 END) as late,
+          SUM(CASE WHEN EXTRACT(HOUR FROM time) < 9 OR (EXTRACT(HOUR FROM time) = 9 AND EXTRACT(MINUTE FROM time) <= 15) THEN 1 ELSE 0 END) as ontime
         FROM attendance_logs
         WHERE action = 'Check In' AND employee_id = ?
       `;

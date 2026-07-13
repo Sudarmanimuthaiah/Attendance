@@ -1,0 +1,2 @@
+# Rewrite /api/* requests to your backend hosted on Render or elsewhere
+/api/*  https://your-render-backend-url.onrender.com/api/:splat  200

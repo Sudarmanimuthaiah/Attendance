@@ -6,8 +6,13 @@ let pool;
 
 if (process.env.DATABASE_URL) {
   // Aiven or other cloud Postgres URL
+  // Strip query parameters to prevent pg from overriding our ssl config options
+  let connectionString = process.env.DATABASE_URL;
+  if (connectionString.includes('?')) {
+    connectionString = connectionString.split('?')[0];
+  }
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString,
     ssl: {
       rejectUnauthorized: false
     }

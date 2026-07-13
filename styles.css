@@ -1441,6 +1441,7 @@ tr:hover .user-avatar {
   .nav-item {
     flex: 0 0 70px; /* Exact fixed width for each nav item to scroll nicely */
     min-width: 70px;
+    width: auto !important;
     height: 100%;
     display: flex;
     justify-content: center;
@@ -1458,8 +1459,8 @@ tr:hover .user-avatar {
     padding: 4px 0;
     border-radius: 0;
     background: transparent !important;
-    border: none;
-    box-shadow: none;
+    border: none !important;
+    box-shadow: none !important;
   }
 
   .nav-link span {
@@ -1473,9 +1474,21 @@ tr:hover .user-avatar {
     transition: opacity 0.2s ease;
   }
 
+  .nav-link.active {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    color: var(--primary) !important;
+  }
+
   .nav-link.active span {
     opacity: 1;
-    color: var(--primary);
+    color: var(--primary) !important;
+  }
+
+  .nav-link.active svg {
+    color: var(--primary) !important;
+    transform: none !important; /* Disable active scale */
   }
 
   .nav-link svg {
@@ -1487,6 +1500,10 @@ tr:hover .user-avatar {
 
   .nav-link:active svg {
     transform: scale(0.9);
+  }
+
+  .nav-link:hover svg {
+    transform: none !important; /* Disable hover translation shift on mobile */
   }
   
   .mobile-only-logout {

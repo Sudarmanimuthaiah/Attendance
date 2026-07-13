@@ -35,7 +35,9 @@ let state = {
   token: safeStorage.getItem('attendance_jwt') || null,
   selectedEmployeeId: null,
   activeTab: 'dashboard',
-  realWeather: null
+  realWeather: null,
+  userCheckInTime: null,
+  userCheckOutTime: null
 };
 // Global chart instances tracker
 let chartInstances = {};
@@ -184,7 +186,11 @@ async function updateDashboardStats() {
   updateLeaveBadge();
 
   try {
-    const [todayLogs, data] = await Promise.all([
+    const [todayUserLogs, todayLogs, data] = await Promise.all([
+      apiFetch(`/api/attendance/today?employeeId=${state.currentUser.id}`).catch(err => {
+        console.error('Failed to pre-fetch today logs for user:', err);
+        return [];
+      }),
       apiFetch('/api/attendance/today').catch(err => {
         console.error('Failed to pre-fetch today logs for dashboard status:', err);
         return [];
@@ -193,6 +199,71 @@ async function updateDashboardStats() {
     ]);
     state.todayLogs = todayLogs;
     const { stats, recentActivity } = data;
+
+    // ---- Update Dashboard Quick Attendance Card State (Exact Template Style) ----
+    const avatarEl = document.getElementById('quick-user-avatar');
+    if (avatarEl) {
+      avatarEl.textContent = getInitials(state.currentUser.name);
+      avatarEl.style.backgroundColor = state.currentUser.color || '#6573c3';
+    }
+
+    const idNameEl = document.getElementById('quick-user-id-name');
+    if (idNameEl) {
+      idNameEl.textContent = `${state.currentUser.id} - ${state.currentUser.name}`;
+    }
+
+    const userCheckIn = todayUserLogs.find(l => l.action === 'Check In');
+    const userCheckOut = todayUserLogs.find(l => l.action === 'Check Out');
+    
+    const statusTxt = document.getElementById('quick-attendance-status');
+    const checkInControls = document.getElementById('quick-check-in-controls');
+    const btnQuickAttendance = document.getElementById('btn-quick-attendance');
+
+    if (userCheckIn) {
+      // Parse IST time to a standard JS date object
+      state.userCheckInTime = new Date(`${userCheckIn.date}T${userCheckIn.time}+05:30`);
+      
+      if (userCheckOut) {
+        state.userCheckOutTime = new Date(`${userCheckOut.date}T${userCheckOut.time}+05:30`);
+        if (statusTxt) {
+          statusTxt.textContent = `Checked Out`;
+          statusTxt.className = 'user-status checked-out';
+        }
+        if (checkInControls) checkInControls.style.display = 'none';
+        if (btnQuickAttendance) {
+          btnQuickAttendance.disabled = true;
+          btnQuickAttendance.textContent = 'Checked Out';
+          btnQuickAttendance.className = 'user-attendance-btn disabled-btn';
+        }
+      } else {
+        state.userCheckOutTime = null;
+        if (statusTxt) {
+          statusTxt.textContent = `Checked In`;
+          statusTxt.className = 'user-status checked-in';
+        }
+        if (checkInControls) checkInControls.style.display = 'none';
+        if (btnQuickAttendance) {
+          btnQuickAttendance.disabled = false;
+          btnQuickAttendance.textContent = 'Check-out';
+          btnQuickAttendance.className = 'user-attendance-btn check-out-btn';
+        }
+      }
+    } else {
+      state.userCheckInTime = null;
+      state.userCheckOutTime = null;
+      if (statusTxt) {
+        statusTxt.textContent = 'Yet to check-in';
+        statusTxt.className = 'user-status yet-to-in';
+      }
+      if (checkInControls) checkInControls.style.display = 'flex';
+      if (btnQuickAttendance) {
+        btnQuickAttendance.disabled = false;
+        btnQuickAttendance.textContent = 'Check-in';
+        btnQuickAttendance.className = 'user-attendance-btn check-in-btn';
+      }
+    }
+    
+    updateLiveWorkDuration();
 
     if (state.currentUser.isAdmin) {
       document.getElementById('lbl-present').textContent = 'Checked In Today';
@@ -1789,10 +1860,141 @@ function startLiveClock() {
     if (clockDate) clockDate.textContent = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     if (clockDay) clockDay.textContent = now.toLocaleDateString('en-US', { weekday: 'long' });
     updateGreetingBanner();
+    updateLiveWorkDuration();
   }
 
   tick();
   setInterval(tick, 1000);
+}
+
+// Format time string from HH:MM:SS to HH:MM AM/PM
+function formatTimeString(timeStr) {
+  if (!timeStr) return '';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+  let hrs = parseInt(parts[0]);
+  const mins = parts[1];
+  const amamp = hrs >= 12 ? 'PM' : 'AM';
+  hrs = hrs % 12;
+  hrs = hrs ? hrs : 12; // the hour '0' should be '12'
+  return `${String(hrs).padStart(2, '0')}:${mins} ${amamp}`;
+}
+
+// Calculate and update the live dashboard working duration timer in template boxes
+function updateLiveWorkDuration() {
+  const hhEl = document.getElementById('hh');
+  const mmEl = document.getElementById('mm');
+  const ssEl = document.getElementById('ss');
+  if (!hhEl || !mmEl || !ssEl) return;
+
+  if (state.userCheckInTime) {
+    let endTime = new Date();
+    if (state.userCheckOutTime) {
+      endTime = state.userCheckOutTime;
+    }
+    const durationMs = endTime - state.userCheckInTime;
+    if (durationMs > 0) {
+      const secs = Math.floor(durationMs / 1000) % 60;
+      const mins = Math.floor(durationMs / 60000) % 60;
+      const hours = Math.floor(durationMs / 3600000);
+      
+      hhEl.textContent = String(hours).padStart(2, '0');
+      mmEl.textContent = String(mins).padStart(2, '0');
+      ssEl.textContent = String(secs).padStart(2, '0');
+    } else {
+      hhEl.textContent = '00';
+      mmEl.textContent = '00';
+      ssEl.textContent = '00';
+    }
+  } else {
+    hhEl.textContent = '00';
+    mmEl.textContent = '00';
+  }
+}
+
+// Quick Attendance Marking for Dashboard
+async function handleQuickMarkAttendance(action) {
+  if (!state.currentUser) return;
+  
+  const remarksInput = document.getElementById('quick-remarks');
+  const remarks = remarksInput ? remarksInput.value.trim() : '';
+  const activePill = document.querySelector('#quick-status-pills .status-pill.active');
+  const status = activePill ? activePill.getAttribute('data-val') : 'Office';
+
+  setQuickButtonLoading(true);
+
+  if (status === 'Office' && action === 'Check In' && navigator.geolocation) {
+    showToast('Retrieving GPS location for range verification...', 'info');
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        await submitQuickMarkRequest(action, status, remarks, latitude, longitude);
+      },
+      async (err) => {
+        console.warn('Geolocation failed:', err);
+        showToast('Location permission denied or timeout. Submitting check-in without range verification...', 'warning');
+        await submitQuickMarkRequest(action, status, remarks, null, null);
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  } else {
+    await submitQuickMarkRequest(action, status, remarks, null, null);
+  }
+}
+
+async function submitQuickMarkRequest(action, status, remarks, latitude, longitude) {
+  try {
+    const res = await apiFetch('/api/attendance/mark', {
+      method: 'POST',
+      body: JSON.stringify({
+        employeeId: state.currentUser.id,
+        action,
+        status,
+        remarks,
+        latitude,
+        longitude
+      })
+    });
+
+    const remarksInput = document.getElementById('quick-remarks');
+    if (remarksInput) remarksInput.value = '';
+    
+    if (res.log && res.log.distance_meters !== null) {
+      const dist = res.log.distance_meters;
+      if (dist <= 200) {
+        showToast(`Successfully marked ${action}! verified in office range (${dist}m away).`, 'success');
+      } else {
+        showToast(`Marked ${action}! Warning: Detected outside office boundaries (${dist}m).`, 'warning');
+      }
+    } else {
+      showToast(res.message, 'success');
+    }
+    
+    // Refresh stats and layout
+    await updateDashboardStats();
+  } catch (err) {
+    showToast(err.message, 'danger');
+  } finally {
+    setQuickButtonLoading(false);
+  }
+}
+
+function setQuickButtonLoading(isLoading) {
+  const btn = document.getElementById('btn-quick-attendance');
+  if (!btn) return;
+  btn.disabled = isLoading;
+  if (isLoading) {
+    btn.textContent = 'Processing...';
+  } else {
+    if (btn.classList.contains('check-in-btn')) {
+      btn.textContent = 'Check-in';
+    } else if (btn.classList.contains('check-out-btn')) {
+      btn.textContent = 'Check-out';
+    } else {
+      btn.textContent = 'Checked Out';
+    }
+  }
 }
 
 // Configure UI Sidebar layout according to user permissions
@@ -1816,7 +2018,7 @@ function adaptPortalInterface() {
     sidebarAvatar.textContent = getInitials(user.name || 'Admin User');
     sidebarAvatar.style.backgroundColor = user.color || '#6366f1';
     
-    itemEmployees.style.display = 'block';
+    itemEmployees.style.display = '';
     textDashboard.textContent = 'Dashboard';
     textAttendance.textContent = 'Mark Attendance';
     textReports.textContent = 'Reports & History';
@@ -1898,6 +2100,14 @@ async function handleLoginSubmit(e) {
 
 // Logout Handler
 function handleLogout() {
+  const modal = document.getElementById('logout-confirm-modal');
+  if (modal) {
+    modal.classList.add('active');
+  }
+}
+
+// Actual Logout execution (after user confirms in custom modal)
+function executeActualLogout() {
   state.token = null;
   state.currentUser = null;
   state.employees = [];
@@ -1939,6 +2149,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnToggleDarkRight) {
     btnToggleDarkRight.addEventListener('click', handleThemeToggle);
+  }
+  const btnToggleDarkMobile = document.getElementById('btn-toggle-dark-mobile');
+  if (btnToggleDarkMobile) {
+    btnToggleDarkMobile.addEventListener('click', handleThemeToggle);
   }
 
   // ---- Login Tabs switching ----
@@ -2011,6 +2225,61 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // ---- Mobile Drawer Navigation Event Listeners ----
+  const btnMenuToggle = document.getElementById('btn-menu-toggle');
+  const sidebar = document.querySelector('.sidebar');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+  if (btnMenuToggle && sidebar && sidebarOverlay) {
+    const toggleMenu = () => {
+      sidebar.classList.toggle('open');
+      sidebarOverlay.classList.toggle('active');
+    };
+
+    const closeMenu = () => {
+      sidebar.classList.remove('open');
+      sidebarOverlay.classList.remove('active');
+    };
+
+    btnMenuToggle.addEventListener('click', toggleMenu);
+    sidebarOverlay.addEventListener('click', closeMenu);
+
+    // Close menu when any nav-link is clicked on mobile
+    const navLinksList = document.querySelectorAll('.sidebar .nav-link');
+    navLinksList.forEach(link => {
+      link.addEventListener('click', () => {
+        if (sidebar.classList.contains('open')) {
+          closeMenu();
+        }
+      });
+    });
+  }
+
+  // ---- Custom Logout Modal Event Listeners ----
+  const btnLogoutConfirm = document.getElementById('btn-logout-confirm');
+  const btnLogoutCancel = document.getElementById('btn-logout-cancel');
+  const logoutModalBackdrop = document.getElementById('logout-modal-backdrop');
+
+  const closeLogoutModal = () => {
+    const modal = document.getElementById('logout-confirm-modal');
+    if (modal) modal.classList.remove('active');
+  };
+
+  if (btnLogoutConfirm) {
+    btnLogoutConfirm.addEventListener('click', () => {
+      closeLogoutModal();
+      executeActualLogout();
+    });
+  }
+
+  if (btnLogoutCancel) {
+    btnLogoutCancel.addEventListener('click', closeLogoutModal);
+  }
+
+  if (logoutModalBackdrop) {
+    logoutModalBackdrop.addEventListener('click', closeLogoutModal);
+  }
+
   document.getElementById('btn-view-logs').addEventListener('click', () => {
     document.querySelector('.nav-link[data-tab="reports"]').click();
   });
@@ -2030,6 +2299,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-check-in').addEventListener('click', () => handleMarkAttendance('Check In'));
   document.getElementById('btn-check-out').addEventListener('click', () => handleMarkAttendance('Check Out'));
+
+  // ---- Quick Attendance Card Event Listeners (Dashboard) ----
+  const btnQuickAttendance = document.getElementById('btn-quick-attendance');
+  if (btnQuickAttendance) {
+    btnQuickAttendance.addEventListener('click', () => {
+      if (btnQuickAttendance.classList.contains('check-in-btn')) {
+        handleQuickMarkAttendance('Check In');
+      } else if (btnQuickAttendance.classList.contains('check-out-btn')) {
+        handleQuickMarkAttendance('Check Out');
+      }
+    });
+  }
+
+  const quickPills = document.querySelectorAll('#quick-status-pills .status-pill');
+  quickPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      quickPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+    });
+  });
 
   document.getElementById('employee-search').addEventListener('input', (e) => {
     renderEmployeesTable(e.target.value);

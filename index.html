@@ -21,7 +21,7 @@
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
         </div>
-        <span class="brand-name">AttendanceHub</span>
+        <span class="brand-name">Varugai Pathivu</span>
       </div>
       
       <h2 style="text-align: center; margin-bottom: 1.5rem; font-weight: 600;">Portal Sign In</h2>
@@ -65,6 +65,43 @@
   <!-- MAIN APPLICATION CONTAINER -->
   <div id="app-screen" style="display: none; width: 100%; min-height: 100vh;">
     
+    <!-- Mobile Header (Visible on mobile only) -->
+    <header class="mobile-header">
+      <button class="menu-toggle-btn" id="btn-menu-toggle" aria-label="Toggle Menu">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+      <div class="mobile-brand">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        <span>Varugai Pathivu</span>
+      </div>
+      <button class="theme-toggle-btn-mobile" id="btn-toggle-dark-mobile" title="Toggle Theme">
+        <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Sidebar Overlay (Backdrop for drawer) -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="brand">
@@ -152,15 +189,6 @@
             <span id="nav-text-analytics">Analytics</span>
           </a>
         </li>
-        <li class="nav-item mobile-only-logout">
-          <a class="nav-link logout-link" id="btn-logout-mobile" title="Sign Out" style="color: var(--danger);">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-          </a>
-        </li>
       </ul>
 
       <div class="sidebar-footer">
@@ -215,11 +243,35 @@
             </div>
           </div>
 
-          <!-- Live Clock Card -->
-          <div class="glass-card clock-container">
-            <div class="live-time" id="clock-time">00:00:00</div>
-            <div class="live-date" id="clock-date">July 11, 2026</div>
-            <div class="live-day" id="clock-day">Saturday</div>
+          <!-- Attendance Card (Styled exactly from user template) -->
+          <div class="user-attendance-card" id="quick-attendance-card">
+            <div class="card-header-bg"></div>
+            
+            <div class="user-avatar" id="quick-user-avatar">A</div>
+            
+            <div class="user-id-name" id="quick-user-id-name">-- - --</div>
+            
+            <div class="user-status yet-to-in" id="quick-attendance-status">Yet to check-in</div>
+            
+            <div class="user-timer">
+              <div class="timer-box" id="hh">00</div>
+              <div class="timer-colon">:</div>
+              <div class="timer-box" id="mm">00</div>
+              <div class="timer-colon">:</div>
+              <div class="timer-box" id="ss">00</div>
+            </div>
+
+            <!-- Action Form/Controls -->
+            <div class="user-card-actions">
+              <!-- Work Mode Pills (Collapsible/Mini) -->
+              <div id="quick-check-in-controls" style="width: 100%; margin-bottom: 0.75rem; display: flex; justify-content: center; gap: 0.5rem;">
+                <div class="status-pill-group mini" id="quick-status-pills">
+                  <div class="status-pill active" data-val="Office">Office</div>
+                  <div class="status-pill" data-val="Remote">Remote</div>
+                </div>
+              </div>
+              <button id="btn-quick-attendance" class="user-attendance-btn check-in-btn">Check-in</button>
+            </div>
           </div>
 
           <!-- Stats Summary Cards -->
@@ -802,6 +854,24 @@
       </svg>
     </button>
   </aside>
+
+  <!-- CUSTOM LOGOUT CONFIRMATION MODAL -->
+  <div class="custom-modal" id="logout-confirm-modal">
+    <div class="custom-modal-backdrop" id="logout-modal-backdrop"></div>
+    <div class="custom-modal-content">
+      <div class="custom-modal-header">
+        <div class="custom-modal-icon">⚠️</div>
+        <h3>Confirm Sign Out</h3>
+      </div>
+      <div class="custom-modal-body">
+        <p>Are you sure you want to log out from this device? You will need to enter your credentials to log in again.</p>
+      </div>
+      <div class="custom-modal-footer">
+        <button class="btn btn-secondary" id="btn-logout-cancel" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Cancel</button>
+        <button class="btn btn-danger" id="btn-logout-confirm" style="padding: 0.5rem 1rem; font-size: 0.85rem; background: var(--danger); color: white; border: none; border-radius: var(--radius-md); font-weight: 600;">Sign Out</button>
+      </div>
+    </div>
+  </div>
 
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div class="toast-container" id="toast-container"></div>

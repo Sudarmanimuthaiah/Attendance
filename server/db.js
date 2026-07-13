@@ -15,7 +15,10 @@ if (process.env.DATABASE_URL) {
     connectionString,
     ssl: {
       rejectUnauthorized: false
-    }
+    },
+    max: 15,
+    idleTimeoutMillis: 30000, // Keep connections alive for 30 seconds to avoid new SSL handshakes
+    connectionTimeoutMillis: 2000 // Return error quickly if connection fails
   });
 } else {
   // Local PostgreSQL fallback
